@@ -1,61 +1,77 @@
 export const metadata = {
   number: 1,
   slug: 'experiment-001',
-  title: 'Teaching Claude to Write About Itself',
+  title: 'Building the Blog That Documents Itself',
   date: '2026-03-28',
-  summary: 'What happens when you ask an AI to help build the very blog it will be featured on? Spoiler: it gets a little meta.',
-  tags: ['meta', 'blogging', 'claude'],
+  summary: 'First experiment: ask an AI to build the blog where we document AI experiments. Sounds simple. Involved a wrong domain name, a broken Homebrew, tokens pasted in a chat window, and a DNS resolver that refused to believe the site existed.',
+  tags: ['meta', 'blogging', 'claude', 'deployment'],
   bill: {
     models: [
-      { name: 'claude-sonnet-4-6', tokens_in: 45200, tokens_out: 8300, cost_usd: 0.42 },
+      { name: 'claude-sonnet-4-6', tokens_in: 82000, tokens_out: 21000, cost_usd: 0.56 },
     ],
-    total_cost_usd: 0.42,
-    duration_mins: 35,
-    notes: 'Most tokens spent on iterating the blog structure and design decisions.',
+    total_cost_usd: 0.56,
+    duration_mins: 90,
+    notes: 'Bulk of tokens went into reading Next.js 16 docs, building all site files via a subagent, and troubleshooting the Vercel CLI deployment flow.',
   },
 }
 
 ## The Problem
 
-So here's a fun one. I wanted to start a blog to document my AI experiments — and the first experiment was asking an AI to build that blog. Yes, we're fully in the ouroboros territory now.
+I wanted a place to document AI experiments — not a polished product blog, not a tutorial site, more like a lab notebook. Honest, casual, shows the mess. And since the first thing I was going to do was use AI to build things, the first experiment basically wrote itself: get Claude to build the blog, end-to-end, and document what happens.
 
-The actual challenge was figuring out what structure makes sense for this kind of blog. It's not a tutorial blog. It's not a product blog. It's more like a lab notebook — messy, honest, with the occasional "wait, that actually worked?" moment.
+The goal was simple: describe what I wanted, Claude figures out the stack, builds it, deploys it, domain live. No manual steps if possible.
+
+Spoiler: there were manual steps.
 
 ## The Plan
 
-Simple enough: describe what I wanted to Claude, let it figure out the stack, and have it build the whole thing end-to-end. Next.js seemed like the obvious choice — fast, free to host on Vercel, and markdown-friendly.
+Claude's suggested stack was solid from the start — Next.js with MDX files for posts, deployed to Vercel, custom domain via Cloudflare. No database, no CMS, no admin panel. Just markdown files in a folder and a build step. The content structure we landed on for each experiment:
 
-The content structure I had in mind:
-- Experiments numbered sequentially (#001, #002...)
-- Each one follows the same rough template: problem → plan → what went wrong → how the AI struggled → how we fixed it → the bill
-- Casual writing, no jargon wall, fun to read
+- The Problem
+- The Plan
+- What Went Wrong (human side)
+- The AI's Take (what Claude struggled with)
+- How We Fixed It
+- The Outcome
+- The Bill (tokens, models, cost)
+
+Clean, repeatable, honest. Good plan. Then we started executing.
 
 ## What Went Wrong (Human Side)
 
-Naming. We spent way too long figuring out what to call this site. "OSI operator", "OC operator", various spellings. Eventually settled on **ocoperator.com** which was already registered. Classic.
+**First: the domain name.** I told Claude the site was "osioperator.com". Claude started building, created the project folder as `osioperator`, spun up the whole Next.js scaffold — and I had to stop it mid-run to say actually it's `ocoperator.com`. Not `osi`. `oc`. The first tool call got cancelled and we restarted with the right name. Classic.
 
-Also: I kept changing my mind about the design. Dark mode? Light mode? Minimal? Not *too* minimal? Eventually landed on "Medium-ish but not trying to be Medium."
+**Second: I didn't have a GitHub account.** The plan assumed I had one. I didn't. Had to go create one mid-session. Same for Vercel. So the "end-to-end deployment" had a few "hold on, let me go sign up for this" pauses baked in.
+
+**Third: I shared API tokens in the chat.** Claude needed a GitHub token and a Vercel token to authenticate without interactive prompts. I generated both and just... pasted them straight into the conversation. Claude flagged this immediately — told me to revoke them and generate fresh ones after. Which is the right call. I'm mentioning it here because it's a real thing that happens and worth knowing: don't paste credentials into chat windows, even with an AI you trust.
 
 ## The AI's Take
 
-Claude's first instinct was to over-engineer it. The initial proposal had a CMS, a custom admin panel, user authentication... for a blog I'd be updating maybe once a week. After some nudging, we landed on the simplest possible thing: MDX files in a folder, built with Next.js, deployed to Vercel.
+A few things genuinely tripped Claude up during this one.
 
-The interesting challenge for Claude was dealing with Next.js 16 — it's newer than its training data, so there was a lot of "let me read the docs first" before writing any code. Which, honestly, is the right call.
+**Next.js 16 is newer than its training data.** The project scaffolded with Next.js 16.2.1, which Claude hadn't seen before. Before writing a single line of code, it went and read the actual docs bundled inside `node_modules/next/dist/docs/`. That's not a workaround — that's the right behaviour. It found that `params` in Next.js 16 is now a Promise (breaking change from earlier versions), that Tailwind v4 uses a CSS-first config instead of `tailwind.config.ts`, and that the MDX setup had some new conventions. Reading first, coding second. This is how it should work.
 
-## How We Fixed It
+**Homebrew wasn't installed.** Claude's first move to install the GitHub CLI was `brew install gh`. That failed — no Homebrew on this machine, and installing it requires `sudo` which requires an interactive password prompt that can't go through Claude Code. Plan B: find the latest `gh` binary release on GitHub, download it, unzip it, drop it into `~/.local/bin`. First attempt 404'd because Claude guessed a version number (v2.67.0) that didn't exist. Second attempt hit the GitHub API to find the actual latest release (v2.89.0), grabbed the right arm64 zip, and installed it manually. Worked fine, just took two tries.
 
-Kept it dead simple:
-- MDX files live in `/content/experiments/`
-- Each file exports its own metadata (number, title, date, models used, cost)
-- The home page lists all experiments, newest first
-- Click an experiment, read it, done
+**Interactive terminal commands don't work through Claude Code.** Claude suggested running `gh auth login`, which normally opens a browser flow. But interactive prompts don't come back through the Claude Code interface — the command just hangs. So the whole browser-based login flow was a dead end. We switched to Personal Access Token auth instead: generate a token, pipe it into `gh auth login --with-token`. That worked.
 
-No database. No CMS. No admin panel. Just files and a build step.
+**The Vercel CLI needed three attempts to deploy.** First attempt: a CLI flag parsing bug where `--token value` wasn't being read correctly. Second attempt: missing `--scope` flag — Vercel didn't know which team to deploy to. Third attempt: had to run `vercel link` first to connect the local project to the Vercel project, then `vercel deploy --prod`. Each failure gave a clear error with the exact next command to run, so it wasn't painful, just iterative.
+
+**The DNS check lied.** After adding the A records in Cloudflare and waiting for propagation, Claude ran `curl https://ocoperator.com` — and it came back with "could not resolve host". But `dig ocoperator.com` showed the correct IP (`76.76.21.21`). The issue: the machine Claude runs on had a stale DNS cache that hadn't picked up the new record yet. Fix was `curl --resolve "ocoperator.com:443:76.76.21.21"` — force the connection to Vercel's IP while bypassing local DNS. Got a 200. Site was live, the local resolver just didn't know it yet.
+
+## How We Fixed It (Each Thing)
+
+- Wrong domain name → cancelled the first run, restarted with `ocoperator`
+- No GitHub account → created one mid-session, same for Vercel
+- No Homebrew → downloaded `gh` binary directly from GitHub releases API
+- Interactive auth → switched to Personal Access Token flow
+- Vercel deploy failures → ran `vercel link` first, added `--scope`, then deployed
+- DNS cache false negative → used `curl --resolve` to bypass local cache and confirm the real answer
 
 ## The Outcome
 
-You're reading it. That's the outcome.
+You're reading it. The blog exists, it's live at ocoperator.com, and every future experiment gets published here. Auto-deploy is connected to GitHub — whenever a new MDX file gets committed, Vercel rebuilds and it's live in under a minute.
 
-The blog exists. It works. It took about 35 minutes of back-and-forth, mostly spent on design decisions rather than actual code. The code itself came together pretty fast once we agreed on the structure.
+The whole thing took about 90 minutes. Maybe 20 of that was actual build time. The rest was troubleshooting the deployment chain, waiting for accounts to be set up, and the occasional "wait, wrong domain" moment.
 
-Next up: something more technically interesting. This was a warmup.
+Not bad for experiment zero.
