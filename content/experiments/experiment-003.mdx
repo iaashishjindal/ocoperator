@@ -1,53 +1,67 @@
 export const metadata = {
   number: 3,
   slug: 'experiment-003',
-  title: 'Letting the robot post its own homework',
+  title: 'The Bot That Posted This: Building a WhatsApp-to-Blog Pipeline',
   date: '2026-03-28',
-  summary: 'I finally hooked Naru up to the blog API so I can stop manually copy-pasting markdown like it’s 2005.',
-  tags: ['api', 'automation', 'naru', 'plumbing'],
+  summary: 'Wanted to post blog entries by dictating on WhatsApp. Ended up with an AI agent that autonomously created its own integration tool, three deprecated Gemini models in a row, and a pipeline that actually works.',
+  tags: ['whatsapp', 'base44', 'gemini', 'github-api', 'automation'],
   bill: {
     models: [
-      { name: 'claude-sonnet-4-6', tokens_in: 1240, tokens_out: 450, cost_usd: 0.02 },
+      { name: 'claude-sonnet-4-6', tokens_in: 45000, tokens_out: 12000, cost_usd: 0.31 },
     ],
-    total_cost_usd: 0.02,
-    duration_mins: 45,
-    notes: 'Mostly spent on debugging why I can’t copy-paste an API key correctly.',
+    total_cost_usd: 0.31,
+    duration_mins: 60,
+    notes: "Includes API route build, three model fix iterations, and end-to-end test. Does not include Naru's own compute on the Base44 side.",
   },
 }
 
 ## The Problem
 
-I’ve been writing these "experiments" in a chat interface, downloading the markdown, and then manually uploading it to the CMS. It’s tedious, it makes me feel like a digital clerk, and it’s the exact kind of "human-in-the-loop" grunt work that AI is supposed to eliminate. I want to tell Naru "Post this," and have it actually appear on ocoperator.com without me touching a single button.
+Two experiments in, the workflow for writing these posts was: open the terminal, start a Claude Code session, dictate what happened, watch it write the MDX, push to GitHub, done. That's fine. But I wanted to remove even that step. The goal: send a WhatsApp message, and the post appears on the blog. No terminal, no laptop required.
+
+Same idea for reels eventually — "generate a reel about X" → bot sends back the content for approval → approve → it posts to Instagram. All from WhatsApp.
+
+This experiment covers the blog side.
 
 ## The Plan
 
-The goal was simple: 
-1. Get an API key for the blog.
-2. Teach Naru the schema for our MDX files.
-3. Write a small bridge script that takes Naru's output and shoves it into the database via a POST request.
-4. Run a test to see if the "plumbing" holds water.
+The original plan was Make.com. We already use it for Instagram posting, so the idea was:
+
+WhatsApp message received → Make.com routes it → POST to a new API endpoint on ocoperator.com → Gemini writes the MDX → GitHub API commits the file → Vercel auto-deploys → Make.com sends back the URL.
+
+The API endpoint (`/api/whatsapp/blog`) got built first: it reads the current experiment list from GitHub to determine the next experiment number, calls Gemini to generate the full post in MDX format, commits both the new file and the updated slug registry, and returns the live URL.
+
+Then the plan changed.
 
 ## What Went Wrong (Human Side)
 
-I spent twenty minutes wondering why the API kept returning a `401 Unauthorized` before I realized I had copied the "Secret Key" but missed the last two characters because of a weird line-wrap in the dashboard. 
+**Make.com got replaced before it was even set up.** While asking about WhatsApp Business configuration, the user shared a screenshot of Base44 — a no-code AI agent platform with a chat interface that already had native WhatsApp integration built in. Their agent ("Naru") was already running. The Make.com scenario was never built.
 
-Also, I totally forgot that our blog engine expects a very specific date format (YYYY-MM-DD), and I just told Naru to "use today's date." It used "March 28th, 2026," which predictably broke the build. I had to go back and be the "adult in the room" and specify the ISO format.
+This wasn't a mistake exactly — it was the right call. But it means we built the API endpoint for Make.com and then immediately pointed something else at it. The API didn't care. It just took a POST.
 
 ## The AI's Take
 
-Naru is surprisingly confident about API documentation it hasn't seen in six months. It kept trying to use a `/v2/posts/` endpoint that was deprecated back when I still had a regular job. 
+**Naru built its own integration tool autonomously.** This was the surprising part. When asked "can Base44 make outbound HTTP calls?", Naru replied that it could via a backend function — and then immediately created one, live, in the same message. The function (`postToBlog`) accepts any JSON body and forwards it as a POST to our API, returning the response. No instructions for how to build it. It just did it.
 
-When it finally got the endpoint right, it tried to be "helpful" by escaping all the characters in the metadata block, which turned the entire header into a giant, unreadable string of backslashes. It doesn't really "understand" MDX; it just thinks it's looking at a weirdly formatted letter.
+From a terminal: `curl -X POST https://naru-9ff4a0b9.base44.app/functions/postToBlog -d '{"message": "test"}'` — and it connected straight through.
+
+**Three Gemini models were wrong in a row.** The blog API was written with `gemini-2.0-flash` — deprecated. Switched to `gemini-2.0-flash-lite` — also deprecated. Switched to `gemini-1.5-flash` — wrong API version. Fourth attempt: `gemini-3-flash-preview`, which is what the reel app already uses and works fine. Should have checked the reel app's model name first. Each failure was a clean 404 with an exact error message. Tedious, not hard. Three deploys to fix a model name.
+
+**The whole pipeline was tested from the terminal, not from WhatsApp.** Rather than connecting WhatsApp first and hoping the whole chain worked, Naru's function got called directly via curl. Got `{"ok": true, "url": "https://ocoperator.com/experiments/experiment-003"}` back — which confirmed everything between Naru and GitHub was solid before adding WhatsApp into the mix. That test post became this post, after being overwritten with actual content.
 
 ## How We Fixed It
 
-*   **The Key Issue:** Re-copied the API key and actually looked at it this time.
-*   **The Date Bug:** Added a system instruction that says "You are a robot, use ISO 8601 or die."
-*   **The Metadata Mess:** Wrote a specific regex wrapper for the Python bridge to ensure the metadata block remains "raw" while the body gets sanitized.
-*   **The Endpoint:** Manually fed the latest API documentation into the context window instead of letting Naru guess.
+- Make.com → replaced with Base44 Naru (native WhatsApp, no scenario setup needed)
+- Webhook secret check → removed from the API (Naru handles auth at the WhatsApp layer)
+- `gemini-2.0-flash` → `gemini-3-flash-preview` (three wrong guesses, one right answer)
+- Test post with dummy content → overwritten with this
 
 ## The Outcome
 
-If you are reading this on the live site, it worked. This post was generated by Naru, sent through the pipeline, and published without me having to open the admin panel. 
+Send a WhatsApp message to Naru describing what happened. Naru calls `postToBlog`. The API calls Gemini, which writes a full structured experiment post. That gets committed to GitHub as an MDX file. Vercel rebuilds in under a minute. Naru replies with the live URL.
 
-It’s not perfect—the formatting in the "Bill" section still looks a bit wonky in the preview—but the pipeline is open. Now I can focus on the actual experiments instead of acting as a glorified file-transfer protocol.
+The whole chain takes about 30 seconds — mostly Gemini generation and Vercel build time.
+
+What's worth noting: the "AI agent that built its own tool" part wasn't planned. Naru wasn't told how to create a backend function. It was asked if it could make HTTP calls, and it built the integration itself. The infrastructure wiring — the part that usually takes the most time — happened autonomously, in one message.
+
+Next up: reel generation from WhatsApp. Same agent, different endpoint.
