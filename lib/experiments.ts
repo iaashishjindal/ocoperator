@@ -26,6 +26,7 @@ export interface ExperimentMetadata {
 export const EXPERIMENT_SLUGS = [
   'experiment-001',
   'experiment-002',
+  'experiment-003',
 ] as const
 
 export type ExperimentSlug = (typeof EXPERIMENT_SLUGS)[number]
