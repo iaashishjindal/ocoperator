@@ -1,0 +1,75 @@
+export const metadata = {
+  number: 2,
+  slug: 'experiment-002',
+  title: 'Shipping an Instagram Reel Bot — Without Knowing Canvas Has No Audio',
+  date: '2026-03-28',
+  summary: 'Took a working reel generator from Google AI Studio and turned it into a one-click Instagram posting pipeline. The AI built everything correctly. It just never told me the videos had no sound.',
+  tags: ['instagram', 'reels', 'make.com', 'cloudinary', 'canvas', 'audio'],
+  bill: {
+    models: [
+      { name: 'claude-sonnet-4-6', tokens_in: 160000, tokens_out: 45000, cost_usd: 1.15 },
+    ],
+    total_cost_usd: 1.15,
+    duration_mins: 180,
+    notes: 'Does not include the ~2 hours on Google AI Studio to build the original reel generator. Claude Code sessions covered porting, auth, Cloudinary, Make.com, audio mixing, and multiple bug fixes across several conversations.',
+  },
+}
+
+## The Problem
+
+I built a reel generator in Google AI Studio. It renders 9:16 canvas animations — two formats: a ChatGPT-style Q&A, and a Corporate Translator (buzzword → unfiltered truth). Took about two hours to get it working there. It looked great. It played great. The only problem: I had no way to post it anywhere. No auth, no upload pipeline, no Instagram integration. Just a canvas that played in a browser tab.
+
+The goal for this experiment: take that working app and turn it into a real posting pipeline. Someone visits a URL, logs in, generates a reel, clicks upload, it's on Instagram. No manual steps.
+
+## The Plan
+
+The plan came together pretty fast:
+
+1. Port the AI Studio app to Next.js, host on Vercel at reel.ocoperator.com
+2. Add a login wall (simple username/password, no full auth system needed)
+3. Record the canvas animation as a video file in the browser
+4. Upload it to Cloudinary to get a public URL
+5. Send that URL to Make.com, which handles the Instagram Graph API side
+
+The Make.com approach was my call, not the AI's. Claude's first instinct was to go deep on the Facebook Graph API — Meta Developer App setup, OAuth flows, long-lived tokens, the works. That's the "correct" path, technically. It's also a 3-hour rabbit hole before you post a single thing. I knew Make.com had an Instagram module that handles all of that already. Suggested it, Claude pivoted immediately, done in 20 minutes.
+
+## What Went Wrong (Human Side)
+
+**The reels had no sound.** This is the big one.
+
+The canvas animation looked perfect. The recording worked. The upload worked. The Instagram post went live. And then I played it and there was complete silence. No music, nothing.
+
+What I didn't know going in — and what the AI in Google AI Studio never mentioned while building the original app — is that the Canvas API doesn't capture audio. `canvas.captureStream()` gives you video frames only. If you want sound in the recording, you have to manually wire up a Web Audio API pipeline, mix the audio track into the stream, and feed the combined thing to MediaRecorder. That's not obvious. That's not something you discover until the first reel goes live and sounds like a funeral.
+
+The AI didn't flag this at any point during the original build. Not once. "Hey, by the way, canvas recordings have no audio" — never came up. I had to figure it out myself, find the MP3 I wanted (CLASH by Raftaar), and bring the solution to Claude. At that point it implemented it cleanly — AudioContext, BufferSource, MediaStreamDestination, mixed into the canvas stream before MediaRecorder starts. But I had to know the problem existed first.
+
+**Make.com was set to run every 15 minutes.** After setting up the webhook scenario in Make.com, I left the schedule running. It was set to trigger every 15 minutes. So every 15 minutes, it re-fired the last webhook payload — which was the last uploaded video URL. The same reel posted to Instagram three times before I noticed. Fix: turn the schedule off, set it to "manually". But it took a posted reel to figure out that was happening.
+
+**Credentials in the chat. Again.** Last experiment I did this with GitHub and Vercel tokens. This time it was Cloudinary API keys and a Gemini key. Pasted them straight in. Claude flagged it again. I'm documenting it again because apparently this is a habit I need to break.
+
+## The AI's Take
+
+**Claude inherited the codebase without auditing it.** When I handed over the AI Studio files, Claude didn't review them for bugs or issues. It just took the existing code as ground truth and started building on top. There were some things in there that probably could have been flagged early — like the fact that canvas recording produces silent video — but the approach was "the existing app works, let's extend it" not "let me check what this actually does." That's how new contractors work. It's not wrong, but it's worth knowing.
+
+**The shell ate my password.** The `AUTH_PASSWORD` for the login wall was `Aj151093!` — that exclamation mark at the end gets interpreted by zsh as a history expansion command. Every time Claude tried to set the env var in a shell loop, the password got corrupted before it even reached Vercel. The Cloudinary secret had similar issues. The fix was to bypass the shell entirely and use the Vercel REST API directly to patch env vars. Worked perfectly, but it took a couple of "Invalid api_key" errors on a live deployment to diagnose.
+
+**The trending topic generator silently did nothing.** The "Generate Template" button had a Google Search grounding option for trending India topics. Turns out `googleSearch` as a tool is incompatible with `responseMimeType: "application/json"` in the Gemini SDK — using both together causes the API call to fail. The catch block was just `console.error(error)` with no user-visible feedback. So the user would click Generate, nothing would happen, no error shown, no idea why. Two fixes: drop the googleSearch tool (the model knows enough from training data when you give it a specific topic), and add a visible alert when generation fails so it's not silent anymore.
+
+**The 75-second lie.** After Make.com confirmed it received the webhook, the UI originally showed "Posted ✓". But Make.com just acknowledges receipt — it doesn't wait for Instagram to finish publishing, which takes 30–90 seconds on their end. So "Posted ✓" was showing before the reel was actually live. Fixed with a 75-second publishing countdown after Make.com confirms, so the state reflects what's actually happening.
+
+## How We Fixed It
+
+- No audio → Web Audio API: pre-load MP3, create AudioContext on record click, mix audio track into canvas stream before MediaRecorder starts
+- Make.com reposting → turned off the scheduled trigger, switched to manual-only
+- Shell escaping corrupting env vars → Vercel REST API PATCH instead of shell commands
+- Silent generate failures → removed googleSearch tool, stronger topic-specific prompt, added visible error alert
+- False "done" state → 75-second countdown after Make.com handoff before showing complete
+- Same Cloudinary video reposting → unique `public_id` per upload (`reel_timestamp_randomstr`) so each recording is a fresh file
+
+## The Outcome
+
+reel.ocoperator.com is live. Login, generate a reel (type a topic, hit Generate), click Upload to Instagram — it records the animation automatically, mixes in the audio, uploads to Cloudinary, fires the Make.com webhook, and starts a countdown while Instagram processes it. The whole "Play & Record" manual step got removed in a later session — now clicking Upload triggers the recording automatically.
+
+The two hours on AI Studio got us a good-looking canvas animation. The Claude Code sessions turned it into something actually shippable. Different tools, different jobs.
+
+The thing I keep thinking about: the audio issue was a known limitation of the Canvas API. It's documented. Any AI that helped build a screen recorder should probably mention it. It didn't. I'm not sure if that's a gap in how the AI was prompted, a gap in what it thought to flag, or just a case of "you didn't ask." Either way — the user had to find it.

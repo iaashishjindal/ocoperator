@@ -25,6 +25,7 @@ export interface ExperimentMetadata {
 // Add new experiment slugs here as you publish them
 export const EXPERIMENT_SLUGS = [
   'experiment-001',
+  'experiment-002',
 ] as const
 
 export type ExperimentSlug = (typeof EXPERIMENT_SLUGS)[number]
