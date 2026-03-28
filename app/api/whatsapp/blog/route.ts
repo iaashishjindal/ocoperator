@@ -125,7 +125,7 @@ export const metadata = {
 Write the full MDX. Only output the raw MDX — no code fences, no explanation, just the file content starting with "export const metadata".`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-lite',
+      model: 'gemini-1.5-flash',
       contents: prompt,
       config: { responseMimeType: 'text/plain' },
     });
