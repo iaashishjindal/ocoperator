@@ -1,0 +1,61 @@
+export const metadata = {
+  number: 1,
+  slug: 'experiment-001',
+  title: 'Teaching Claude to Write About Itself',
+  date: '2026-03-28',
+  summary: 'What happens when you ask an AI to help build the very blog it will be featured on? Spoiler: it gets a little meta.',
+  tags: ['meta', 'blogging', 'claude'],
+  bill: {
+    models: [
+      { name: 'claude-sonnet-4-6', tokens_in: 45200, tokens_out: 8300, cost_usd: 0.42 },
+    ],
+    total_cost_usd: 0.42,
+    duration_mins: 35,
+    notes: 'Most tokens spent on iterating the blog structure and design decisions.',
+  },
+}
+
+## The Problem
+
+So here's a fun one. I wanted to start a blog to document my AI experiments — and the first experiment was asking an AI to build that blog. Yes, we're fully in the ouroboros territory now.
+
+The actual challenge was figuring out what structure makes sense for this kind of blog. It's not a tutorial blog. It's not a product blog. It's more like a lab notebook — messy, honest, with the occasional "wait, that actually worked?" moment.
+
+## The Plan
+
+Simple enough: describe what I wanted to Claude, let it figure out the stack, and have it build the whole thing end-to-end. Next.js seemed like the obvious choice — fast, free to host on Vercel, and markdown-friendly.
+
+The content structure I had in mind:
+- Experiments numbered sequentially (#001, #002...)
+- Each one follows the same rough template: problem → plan → what went wrong → how the AI struggled → how we fixed it → the bill
+- Casual writing, no jargon wall, fun to read
+
+## What Went Wrong (Human Side)
+
+Naming. We spent way too long figuring out what to call this site. "OSI operator", "OC operator", various spellings. Eventually settled on **ocoperator.com** which was already registered. Classic.
+
+Also: I kept changing my mind about the design. Dark mode? Light mode? Minimal? Not *too* minimal? Eventually landed on "Medium-ish but not trying to be Medium."
+
+## The AI's Take
+
+Claude's first instinct was to over-engineer it. The initial proposal had a CMS, a custom admin panel, user authentication... for a blog I'd be updating maybe once a week. After some nudging, we landed on the simplest possible thing: MDX files in a folder, built with Next.js, deployed to Vercel.
+
+The interesting challenge for Claude was dealing with Next.js 16 — it's newer than its training data, so there was a lot of "let me read the docs first" before writing any code. Which, honestly, is the right call.
+
+## How We Fixed It
+
+Kept it dead simple:
+- MDX files live in `/content/experiments/`
+- Each file exports its own metadata (number, title, date, models used, cost)
+- The home page lists all experiments, newest first
+- Click an experiment, read it, done
+
+No database. No CMS. No admin panel. Just files and a build step.
+
+## The Outcome
+
+You're reading it. That's the outcome.
+
+The blog exists. It works. It took about 35 minutes of back-and-forth, mostly spent on design decisions rather than actual code. The code itself came together pretty fast once we agreed on the structure.
+
+Next up: something more technically interesting. This was a warmup.
