@@ -46,15 +46,6 @@ async function ghPut(path: string, content: string, message: string, sha: string
 export async function POST(request: Request) {
   const startTime = Date.now();
   try {
-    // Verify webhook secret
-    const webhookSecret = process.env.WHATSAPP_WEBHOOK_SECRET;
-    if (webhookSecret) {
-      const authHeader = request.headers.get('x-webhook-secret');
-      if (authHeader !== webhookSecret) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
-    }
-
     const { message } = await request.json();
     if (!message) {
       return NextResponse.json({ error: 'No message provided' }, { status: 400 });
