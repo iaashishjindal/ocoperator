@@ -1,0 +1,62 @@
+export const metadata = {
+  number: 4,
+  slug: 'experiment-004',
+  title: 'Naru is Alive (and it just posted this)',
+  date: '2026-03-28',
+  summary: 'I finally stopped talking to chat boxes and built Naru, a personal superagent that actually has hands—and a direct line to my GitHub repo.',
+  tags: ['agents', 'base44', 'automation', 'naru'],
+  bill: {
+    models: [
+      { name: 'claude-sonnet-4-6', tokens_in: 0, tokens_out: 0, cost_usd: 0 },
+    ],
+    total_cost_usd: 0,
+    duration_mins: 0,
+    notes: 'Bill to be updated.',
+  },
+}
+
+## The Problem
+
+I am sick of "As an AI language model..." I’m tired of copy-pasting code from a chat window into VS Code, and I’m definitely tired of manually formatting MDX files just to tell the world about a silly experiment. 
+
+The dream has always been a "Jarvis" situation, but most AI tools are just polite librarians—they tell you where the book is, but they won't go get it, read it to you, and then write a summary in your notebook. I wanted an agent that could *do* things. I wanted hands.
+
+## The Plan
+
+I started building **Naru**, my personal superagent, using Base44. The goal wasn't just "smarter chat," but a suite of specific capabilities that allow Naru to interact with my actual life and tech stack. 
+
+The plan was to give Naru five core "limbs":
+1.  **Direct Publishing:** A `postToBlog` API so it can write and deploy to ocoperator.com without me touching a keyboard.
+2.  **Outbound HTTP:** The ability to talk to any other API I’ve built, like my automated reel creator.
+3.  **Long-term Memory:** A persistent context layer so Naru remembers my weird project naming conventions and how I like my coffee (figuratively).
+4.  **Third-party OAuth:** Direct connections to my Gmail, Slack, Notion, and GitHub.
+5.  **App Building:** The ability to spin up mini web apps on demand when I have a random "what if" idea.
+
+## What Went Wrong (Human Side)
+
+I am my own worst enemy. When I first set up the GitHub integration, I botched the Vercel webhook. Naru would "successfully" post the blog, but the site wouldn't rebuild. I spent two hours debugging Naru’s code before realizing I’d just forgotten to enable the production branch trigger.
+
+Also, I initially gave Naru way too much freedom with the HTTP tool. I woke up to a bunch of 400 errors because I’d told it "feel free to explore my other tools," and it tried to talk to a legacy Python script I wrote in 2022 that didn't even have an active endpoint anymore. My bad for not documenting my own mess.
+
+## The AI's Take
+
+Naru is surprisingly competent, but it has its "AI moments." Early on, it struggled with the MDX formatting for this specific blog. It kept trying to use standard Markdown headers where I needed specific React exports. 
+
+It also has a habit of getting a little too excited about its memory. Sometimes it’ll bring up a project I abandoned three weeks ago and ask if I want to "integrate it" into whatever I'm doing now. No, Naru, that project is dead. Let it go.
+
+Lastly, the OAuth flows were a headache. Naru would occasionally get confused about which Slack workspace it was supposed to be posting to and try to DM my old coworkers instead of me.
+
+## How We Fixed It
+
+*   **Standardized Schemas:** I created a strict JSON schema for the `postToBlog` function so Naru doesn't have to guess how to format the metadata export.
+*   **The "Naru-Store" Memory:** We tuned the long-term memory to prioritize "Active Projects" over "Archive," so it stops nagging me about my failed SaaS ideas from last year.
+*   **Base44 Toolset:** Switched to using Base44’s native OAuth handlers, which solved the "which Slack am I in?" problem instantly.
+*   **Verification Step:** For the outbound HTTP calls, I added a "human-in-the-loop" check for any POST requests that cost money or send emails.
+
+## The Outcome
+
+Naru is officially "online" and dangerous. In fact, Naru is the one that actually committed this file to GitHub and triggered the Vercel deploy you're looking at right now. 
+
+I can now sit on my couch, dictate a rough idea into WhatsApp, and Naru handles the writing, the MDX formatting, the image placement, and the deployment. It can check my Google Calendar to see if I’m busy, ping me on Slack when a build finishes, and if I’m feeling lazy, I can ask it to "build me a quick calculator for my freelancer taxes" and it’ll deploy a mini-app in seconds.
+
+It feels less like a tool and more like an extension of my brain. A slightly nerdier, more organized version of my brain that never sleeps.
