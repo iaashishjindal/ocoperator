@@ -1,0 +1,75 @@
+export const metadata = {
+  number: 5,
+  slug: 'experiment-005',
+  title: 'When the Tool Is the Problem: Pivoting Gmail Productivity to Live Inside Gmail',
+  date: '2026-04-03',
+  summary: 'Built a full Gmail intelligence tool — AI classification, a custom dashboard, reportee nudges, BEC detection. Then a conversation with a friend made the real problem obvious: nobody opens a new tool to manage their email.',
+  tags: ['gmail', 'product-strategy', 'pivot', 'claude', 'saas'],
+  bill: {
+    models: [
+      { name: 'claude-sonnet-4-6', tokens_in: 8000, tokens_out: 3000, cost_usd: 0.06 },
+    ],
+    total_cost_usd: 0.06,
+    duration_mins: 30,
+    notes: 'Strategy and planning session. No code written. Claude used as a thought partner to document the pivot and stress-test the new direction.',
+  },
+}
+
+## The Problem
+
+The Gmail Productivity tool had gotten pretty good. MVP1 was a Google Apps Script that ran every 10 minutes, scanned your inbox, called Claude to classify each email into one of five categories (actionable, follow_up, information, update, automated), detected Business Email Compromise attempts, tracked whether your reportees owed you a reply, fetched relevant Jira tickets, generated draft replies, and wrote everything to a structured Google Sheet. There was a custom dashboard — split-pane layout, five tabs, server-side pagination, keyboard navigation. Real work had gone into it.
+
+Then I described it to a friend. Their reaction: "So I have to go open a different thing to see what's in my email?"
+
+That one sentence dismantled the entire UX premise. Not because the tool was bad — it wasn't — but because the premise was wrong. The people this was supposed to help are already overwhelmed by their inbox. They're not going to adopt a new interface to manage that inbox. The overhead of context-switching to a separate dashboard is exactly the kind of friction that kills productivity tools before anyone gives them a fair chance.
+
+## The Pivot
+
+What we decided: everything stays in Gmail. Users don't go anywhere new.
+
+The new direction has four parts:
+
+**1. Label configuration dashboard.** Users define their own labels — Follow Up, Actionable, Informational, whatever fits their workflow — and configure the rules for each. This is the only place they ever leave Gmail, and only during initial setup.
+
+**2. Auto-labeling engine.** Incoming emails get classified and labeled directly in Gmail via the Gmail API. The labels appear in the Gmail sidebar like any other label. No new interface, no new tab, no new habit required.
+
+**3. Auto-read + digest.** Certain labels (Informational, Automated) can be configured to mark emails as read automatically. At end of day — or whenever the user sets — a digest email lands in their inbox summarizing everything that got silently filed away. The summary lives in Gmail because that's where the user already is.
+
+**4. Follow-up automation.** When the engine detects that a follow-up is needed with a reportee — someone who reports to you and hasn't replied in X days — it drafts and sends a follow-up to that person's 1:1 thread, with context from the original email. Org hierarchy comes from Google Workspace's directory or from manual config in the dashboard.
+
+The whole experience for the end user: set up labels once, then forget about the tool entirely. Gmail just starts behaving better.
+
+## What Was Actually Wrong
+
+The original tool wasn't solving the wrong problem. It was solving the right problem in the wrong place.
+
+AI classification of email is genuinely useful. Knowing which emails need action versus which are FYI versus which can be silently filed — that's real signal. The mistake was surfacing that signal in a separate dashboard instead of injecting it directly into the user's existing workflow.
+
+This is a common failure mode in productivity software: the tool requires users to change their behaviour to get the benefit. The better model is making the benefit show up inside the behaviour they already have. Gmail labels are something every Gmail user already knows. Hijacking that primitive is far lower friction than asking someone to adopt a new product surface.
+
+The other gap in the original design: the digest. Reading and triaging "informational" emails is pure overhead for most people. If the tool can read them, summarize the relevant ones, and bury the rest — that's time actually saved, not just reorganized.
+
+## The AI's Take
+
+This experiment was different from the previous four. No code was written. No deployment, no bug, no fix. The session was a planning conversation — using Claude to stress-test a pivot and document the new direction clearly enough to build from.
+
+A few things surfaced worth noting:
+
+**The MVP1 code is almost entirely reusable.** The classification logic (five categories, Claude API, rule-engine shortcuts for obvious cases like bulk headers and noreply senders), the reportee detection, the BEC checks, the Gmail label sync — all of it maps directly to the new architecture. What gets thrown away is the Google Sheet as a data store and the custom dashboard as the primary UI. The intelligence layer survives intact.
+
+**The follow-up feature is the hardest to design safely.** Automatically sending email on behalf of a user is high-stakes. One misfire — wrong recipient, wrong context, wrong tone — and the feature becomes a liability instead of a time-saver. The question of whether auto-send should be the default, or whether the tool should draft and surface for approval first, is still open. This is the kind of decision that's easy to underweight during planning and expensive to reverse after launch.
+
+**The rule engine becomes critical infrastructure in the new design.** When classification is happening silently inside Gmail — with no visible dashboard to catch errors — accuracy matters more than before. A misclassified email getting auto-read when it actually needed action is a worse outcome than the wrong dashboard tab. The planned tier-1 rules need to be airtight before the AI layer handles the edge cases.
+
+## The Outcome
+
+The product is the same idea. The delivery mechanism is completely different.
+
+Old version: open a separate tool, see a dashboard, take action from there.
+New version: set up labels once, watch Gmail get smarter, receive a digest, never leave your inbox.
+
+What comes next is spec work — pinning down how label rules are configured in the dashboard, where the org hierarchy comes from, what the digest email actually looks like, and whether follow-up sending is automatic or approval-gated. Then the build starts.
+
+The MVP1 Apps Script code stays useful as reference for the classification and reportee logic. The custom dashboard goes in a drawer. Not wasted — it proved the intelligence layer worked. But the interface was the wrong call, and a 30-minute conversation was enough to see it clearly.
+
+Sometimes the most useful thing the AI does in a session is help you articulate why the thing you built isn't the thing you should ship.
