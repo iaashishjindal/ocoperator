@@ -29,6 +29,7 @@ export const EXPERIMENT_SLUGS = [
   'experiment-003',
   'experiment-004',
   'experiment-005',
+  'experiment-006',
 ] as const
 
 export type ExperimentSlug = (typeof EXPERIMENT_SLUGS)[number]

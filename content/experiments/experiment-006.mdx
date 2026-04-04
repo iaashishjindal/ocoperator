@@ -1,0 +1,74 @@
+export const metadata = {
+  number: 6,
+  slug: 'experiment-006',
+  title: 'Fixing the Reel Operator from My Phone Using Claude Mobile',
+  date: '2026-04-04',
+  summary: 'Tried to do real product work on the ocoperator pipeline using only Claude Mobile — no laptop, no terminal. It mostly worked. The two places it broke taught me more about the tool than the parts that were smooth.',
+  tags: ['claude-mobile', 'meta', 'ocoperator', 'reels', 'whatsapp'],
+  bill: {
+    models: [
+      { name: 'claude-sonnet-4-6', tokens_in: 12000, tokens_out: 4500, cost_usd: 0.09 },
+    ],
+    total_cost_usd: 0.09,
+    duration_mins: 45,
+    notes: 'Full session on mobile. Claude used for code review, architecture discussion, and writing. No desktop involved until the final commit.',
+  },
+}
+
+## The Problem
+
+Every experiment so far has been run from a laptop. Open Claude Code, open a terminal, iterate. The setup works — but it assumes a desk.
+
+I wanted to know if you could do real work on Claude Mobile. Not "ask a quick question." Actual product work: read a codebase, spot the problems, decide what to fix, produce the changes. The target was the ocoperator pipeline itself — specifically the WhatsApp-to-blog route that's been running the last three experiments. It worked. But "works" isn't the same as "is good," and I'd been mentally flagging issues I hadn't gone back to clean up.
+
+Mobile session on the train. Forty-five minutes. Let's find out.
+
+## The Plan
+
+The WhatsApp route (`/api/whatsapp/blog`) does five things in sequence: parse the incoming message, classify it as new experiment or draft continuation, call Gemini to structure content into MDX, write the MDX to GitHub, register the slug in `lib/experiments.ts`. If any step fails, it was returning a generic "Something went wrong" message back to me on WhatsApp with zero context about what actually broke.
+
+Three things I knew needed fixing before the session started:
+
+1. Error messages were useless
+2. The slug registration was doing regex surgery on a TypeScript source file — fine until it wasn't
+3. The draft continuation path had never been tested end-to-end
+
+I also thought the GitHub write sequence might have a race condition, but I wasn't sure. That's what I wanted Claude to help me figure out.
+
+## What Actually Went Wrong
+
+**The race condition was real, and worse than I thought.** The route was making two separate GitHub API calls — one to write the MDX file, one to update `experiments.ts` with the new slug. No rollback logic. If the first write succeeded and the second failed, the blog would have an MDX file for an experiment that the app never knew about. Silent inconsistency. Someone could navigate to the direct URL and see the post, but it would never appear on the homepage. That would have been confusing to debug without knowing to look there.
+
+Claude caught this in the code review. I had suspected a problem but hadn't articulated it clearly — I was vaguely thinking "these two writes feel unsafe" without pinning down the failure mode. Claude read the route and came back with: if GitHub write 1 succeeds and write 2 fails, here's exactly what the user experiences. That was the useful part. Not just "yes there's a problem" but "here's what it looks like when it breaks."
+
+**Fixing it properly wasn't possible from mobile.** The clean solution would have been a GitHub batch write — one API call, both files, atomic. But the GitHub REST API doesn't have an endpoint that does exactly that. The next option was a transaction-style wrapper with rollback: if write 2 fails, delete the file from write 1. That's more code than I could safely produce and review on a phone screen without a way to run it.
+
+What we landed on instead: keep the two sequential writes, but on failure of the second write, send me a WhatsApp message with the slug name and the specific error. Recovery becomes: add the slug manually in 30 seconds rather than hunting through the codebase trying to understand why a post exists but doesn't appear. Not elegant. Transparent and recoverable.
+
+**The draft continuation path was more broken than I expected.** I tested it mid-session by sending a message with "DRAFT:" prefix — which is what the classification logic keys off to decide this is a continuation rather than a new post. The classification worked. The continuation didn't. The route was fetching the existing MDX, appending the new content, and writing it back — but it was fetching from the wrong branch. The GitHub read was hitting `main` instead of the working branch, so during development it was always reading a stale version of the file, overwriting it with the stale content plus the new section, and losing any changes that had been made since the last merge.
+
+I found this by sending the test message and watching the response come back — the content it confirmed appending was based on a version of the file that was two commits old. The fix was one line: change the `ref` parameter in the GitHub fetch call from `main` to `HEAD`. But finding that one line required reading the GitHub utility code carefully enough to spot what `ref` was being passed, which took a few back-and-forth messages to get Claude to pull up the right part of the file.
+
+## The AI's Take
+
+**Reading code on mobile works better than I expected.** For review work — understanding what a function does, tracing a call sequence, spotting a logical error — the conversational format Claude Mobile uses is actually fine. You ask it to walk through a specific section, it explains it clearly, you follow up. No different in quality from doing the same in Claude Code on desktop, just slower because you're typing on a phone.
+
+**Producing code on mobile is the weak link.** When Claude gave me the corrected version of the draft continuation fetch, I had nowhere to run it. I could read the diff and mentally simulate it, which is okay for a one-line change but wouldn't scale to anything complex. The whole session produced changes I trusted enough to hand off to a desktop commit — but I was trusting the logic, not verifying it with actual execution. That's a gap. For small, targeted fixes to well-understood code, it's an acceptable gap. For anything bigger, it's a problem.
+
+**Claude didn't volunteer to check the rest of the pipeline.** I came in with three specific things to look at. Claude helped me look at those three things. At no point did it say "while we're in here, there are two other patterns in this route that look like they might have similar issues." That's not a complaint — it was doing what I asked — but it's a reminder that "AI as pair programmer" only catches what you point it at. The parts of the codebase I didn't ask about didn't get reviewed.
+
+## What Got Fixed
+
+- Error messages now return the specific failure — "GitHub write 2 failed: 422 Unprocessable Entity", "Gemini returned empty response", not "Something went wrong"
+- Failure of slug registration now sends a WhatsApp recovery message with the slug name so I can add it manually in seconds instead of wondering why a post is invisible
+- Draft continuation fetch now reads from `HEAD` instead of `main`, so it gets the current file rather than the last merged version
+
+The regex surgery on `experiments.ts` is still there. I didn't touch it because opening that can of worms on a phone felt unwise. It's next.
+
+## The Outcome
+
+The pipeline is more honest about its failures now. That's the main thing. Before, a production error at midnight would have given me nothing to work with. Now it tells me exactly where it died.
+
+Claude Mobile is genuinely useful for this kind of work — reading, reviewing, talking through a design, producing a clear brief for changes. It's not a replacement for a proper development environment. But "read a codebase, find the problems, write up what needs to change" is a real and complete unit of work, and it happens to be something you can do from a train with a phone.
+
+The final commit happened on desktop. But the decisions that drove it happened on the train. That split is probably the right model for now.
